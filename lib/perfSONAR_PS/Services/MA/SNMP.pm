@@ -2,9 +2,9 @@ package perfSONAR_PS::Services::MA::SNMP;
 
 use base 'perfSONAR_PS::Services::Base';
 
-use fields 'LS_CLIENT', 'TIME', 'NAMESPACES';
+use fields 'LS_CLIENT', 'TIME', 'NAMESPACES', 'RESULTS', 'METADATADB';
 
-our $VERSION = 0.05;
+our $VERSION = 0.06;
 
 use strict;
 use warnings;
@@ -157,6 +157,22 @@ sub init($$) {
 	  }
   }
 
+  my $metadatadb;
+  my $error;
+  if($self->{CONF}->{"snmp"}->{"metadata_db_type"} eq "file") {
+    $metadatadb = new perfSONAR_PS::DB::File($self->{CONF}->{"snmp"}->{"metadata_db_file"});
+  } elsif($self->{CONF}->{"snmp"}->{"metadata_db_type"} eq "xmldb") {
+    $metadatadb = new perfSONAR_PS::DB::XMLDB( $self->{CONF}->{"snmp"}->{"metadata_db_name"}, $self->{CONF}->{"snmp"}->{"metadata_db_file"}, \%{$self->{NAMESPACES}});
+  }
+  $metadatadb->openDB(\$error);
+
+  if ($error) {
+    $logger->error("Couldn't initialize store file: $error");
+    return -1;
+  }
+
+  $self->{METADATADB} = $metadatadb;
+
   $handler->addMessageHandler("SetupDataRequest", $self);
   $handler->addMessageHandler("MetadataKeyRequest", $self);
 
@@ -189,18 +205,14 @@ sub registerLS($) {
 
         my $queryString = "/nmwg:store/nmwg:metadata";
         my $error = "";            
-        my $metadatadb;
+        my $metadatadb = $self->{METADATADB};
 	my @resultsString;
       
 	if($self->{CONF}->{"snmp"}->{"metadata_db_type"} eq "file") {
-		$metadatadb = perfSONAR_PS::DB::File->new( $self->{CONF}->{"snmp"}->{"metadata_db_file"});
-		$metadatadb->openDB(\$error);
 		@resultsString = $metadatadb->query($queryString);            
 	} elsif($self->{CONF}->{"snmp"}->{"metadata_db_type"} eq "xmldb") {
 		my $dbTr = $metadatadb->getTransaction(\$error);
 		if($dbTr and !$error) {         
-			$metadatadb = perfSONAR_PS::DB::XMLDB->new($self->{CONF}->{"snmp"}->{"metadata_db_name"}, $self->{CONF}->{"snmp"}->{"metadata_db_file"}, $self->{NAMESPACES});
-			$metadatadb->openDB($dbTr, \$error); 
 			@resultsString = $metadatadb->query($queryString, $dbTr, \$error);      
 
 			$metadatadb->commitTransaction($dbTr, \$error);
@@ -253,20 +265,7 @@ sub maMetadataKeyRequest($$$$$) {
   my $mdId = "";
   my $dId = "";
 
-  my $metadatadb;
-  if($self->{CONF}->{"snmp"}->{"metadata_db_type"} eq "file") {
-    $metadatadb = new perfSONAR_PS::DB::File(
-      $self->{CONF}->{"snmp"}->{"metadata_db_file"}
-    );
-  }
-  elsif($self->{CONF}->{"snmp"}->{"metadata_db_type"} eq "xmldb") {
-    $metadatadb = new perfSONAR_PS::DB::XMLDB(
-      $self->{CONF}->{"snmp"}->{"metadata_db_name"},
-      $self->{CONF}->{"snmp"}->{"metadata_db_file"},
-      \%{$self->{NAMESPACES}}
-    );
-  }
-  $metadatadb->openDB;
+  my $metadatadb = $self->{METADATADB};
 
   # MA MetadataKeyRequest Steps
   # ---------------------
@@ -432,11 +431,12 @@ sub maSetupDataRequest($$$$$) {
   my $mdId = "";
   my $dId = "";
 
-  my $metadatadb;
+  my $metadatadb = $self->{METADATADB};
   if($self->{CONF}->{"snmp"}->{"metadata_db_type"} eq "file") {
     $metadatadb = new perfSONAR_PS::DB::File(
       $self->{CONF}->{"snmp"}->{"metadata_db_file"}
     );
+    $logger->debug("MD File: ".  $self->{CONF}->{"snmp"}->{"metadata_db_file"});
   }
   elsif($self->{CONF}->{"snmp"}->{"metadata_db_type"} eq "xmldb") {
     $metadatadb = new perfSONAR_PS::DB::XMLDB(
@@ -734,7 +734,7 @@ sub retrieveSQL($$$$$$) {
         $attrs{$pair[0]} = $pair[1];
       }
 
-      $output->createElement($prefix, $uri, "datum", \%attrs, undef, "");
+      $output->createElement(prefix => $prefix, namespace => $uri, tag => "datum", attributes => \%attrs);
     }
     endData($output);
   }
@@ -814,7 +814,7 @@ sub retrieveRRD($$$$$$) {
             $attrs{"value"} = $rrd_result{$a}{$b};
             $attrs{"valueUnits"} = $valueUnits;
 
-            $output->createElement($prefix, $uri, "datum", \%attrs, undef, "");
+            $output->createElement(prefix => $prefix, namespace => $uri, tag => "datum", attributes => \%attrs);
           }
         }
       }
