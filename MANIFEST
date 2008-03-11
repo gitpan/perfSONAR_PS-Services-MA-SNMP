@@ -5,4 +5,5 @@ MANIFEST.SKIP
 Makefile.PL
 README
 lib/perfSONAR_PS/Services/MA/SNMP.pm
+perl-perfSONAR_PS-Services-MA-SNMP.spec
 META.yml                                 Module meta-data (added by MakeMaker)
