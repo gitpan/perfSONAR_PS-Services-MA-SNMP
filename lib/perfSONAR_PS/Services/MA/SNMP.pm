@@ -7,7 +7,7 @@ use fields 'LS_CLIENT', 'NAMESPACES', 'METADATADB', 'LOGGER';
 use strict;
 use warnings;
 
-our $VERSION = 0.08;
+our $VERSION = 0.09;
 
 =head1 NAME
 
@@ -48,6 +48,7 @@ use perfSONAR_PS::Error_compat qw/:try/;
 use perfSONAR_PS::DB::File;
 use perfSONAR_PS::DB::RRD;
 use perfSONAR_PS::DB::SQL;
+use perfSONAR_PS::ParameterValidation;
 
 my %ma_namespaces = (
     nmwg      => "http://ggf.org/ns/nmwg/base/2.0/",
@@ -291,7 +292,7 @@ return this in response to a request.
 
 sub prepareDatabases {
     my ( $self, @args ) = @_;
-    my $parameters = validate( @args, { doc => 0 } );
+    my $parameters = validateParams( @args, { doc => 0 } );
 
     my $error = q{};
     my $metadatadb = new perfSONAR_PS::DB::XMLDB( { env => $self->{CONF}->{"snmp"}->{"metadata_db_name"}, cont => $self->{CONF}->{"snmp"}->{"metadata_db_file"}, ns => \%ma_namespaces, } );
@@ -312,7 +313,7 @@ operation is non-destructive.
 
 sub loadXMLDB {
     my ( $self, @args ) = @_;
-    my $parameters = validate( @args, { metadatadb => 1 } );
+    my $parameters = validateParams( @args, { metadatadb => 1 } );
 
     my $sourceError = q{};
     my $sourceDB = new perfSONAR_PS::DB::File( { file => $self->{CONF}->{"snmp"}->{"autoload_metadata_db_file"} } );
@@ -383,7 +384,7 @@ map these to the key ids in the metadata database for easy lookup.
 
 sub buildHashedKeys {
     my ( $self, @args ) = @_;
-    my $parameters = validate( @args, {} );
+    my $parameters = validateParams( @args, {} );
 
     if ( $self->{CONF}->{"snmp"}->{"metadata_db_type"} eq "file" ) {
         my $results = $self->{METADATADB}->querySet( { query => "/nmwg:store/nmwg:data" } );
@@ -441,7 +442,7 @@ LS registration is required.
 
 sub needLS {
     my ( $self, @args ) = @_;
-    my $parameters = validate( @args, {} );
+    my $parameters = validateParams( @args, {} );
 
     return ( $self->{CONF}->{"snmp"}->{"enable_registration"} );
 }
@@ -455,10 +456,10 @@ We then sleep for some amount of time and do it again.
 =cut
 
 sub registerLS {
-    my ( $self, $sleep_time ) = validate_pos( @_, 1, { type => SCALARREF }, );
+    my ( $self, $sleep_time ) = validateParamsPos( @_, 1, { type => SCALARREF }, );
 
     #    my ( $self, @args ) = @_;
-    #    my $parameters = validate( @args, { sleep_time => 0 } );
+    #    my $parameters = validateParams( @args, { sleep_time => 0 } );
 
     my ( $status, $res );
     my $ls = q{};
@@ -513,7 +514,7 @@ sub handleMessageBegin {
     my ( $self, $ret_message, $messageId, $messageType, $msgParams, $request, $retMessageType, $retMessageNamespaces ) = @_;
 
     #   my ($self, @args) = @_;
-    #      my $parameters = validate(@args,
+    #      my $parameters = validateParams(@args,
     #            {
     #                ret_message => 1,
     #                messageId => 1,
@@ -538,7 +539,7 @@ sub handleMessageEnd {
     my ( $self, $ret_message, $messageId ) = @_;
 
     #   my ($self, @args) = @_;
-    #      my $parameters = validate(@args,
+    #      my $parameters = validateParams(@args,
     #            {
     #                ret_message => 1,
     #                messageId => 1
@@ -558,7 +559,7 @@ future releases.
 
 sub handleEvent {
     my ( $self, @args ) = @_;
-    my $parameters = validate(
+    my $parameters = validateParams(
         @args,
         {
             output            => 1,
@@ -743,7 +744,7 @@ currently because it is not time sensitive.
 
 sub maMetadataKeyRequest {
     my ( $self, @args ) = @_;
-    my $parameters = validate(
+    my $parameters = validateParams(
         @args,
         {
             output             => 1,
@@ -816,7 +817,7 @@ return the response.
 
 sub metadataKeyRetrieveKey {
     my ( $self, @args ) = @_;
-    my $parameters = validate(
+    my $parameters = validateParams(
         @args,
         {
             metadatadb         => 1,
@@ -891,7 +892,7 @@ be resolved and used to augment (i.e. 'cook') the key.
 
 sub metadataKeyRetrieveMetadataData {
     my ( $self, @args ) = @_;
-    my $parameters = validate(
+    my $parameters = validateParams(
         @args,
         {
             metadatadb         => 1,
@@ -1023,7 +1024,7 @@ with the database of choice (i.e. rrdtool, mysql, sqlite).
 
 sub maSetupDataRequest {
     my ( $self, @args ) = @_;
-    my $parameters = validate(
+    my $parameters = validateParams(
         @args,
         {
             output             => 1,
@@ -1099,7 +1100,7 @@ sqlite).
 
 sub setupDataRetrieveKey {
     my ( $self, @args ) = @_;
-    my $parameters = validate(
+    my $parameters = validateParams(
         @args,
         {
             metadatadb         => 1,
@@ -1203,7 +1204,7 @@ handling function.
 
 sub setupDataRetrieveMetadataData {
     my ( $self, @args ) = @_;
-    my $parameters = validate(
+    my $parameters = validateParams(
         @args,
         {
             metadatadb         => 1,
@@ -1341,7 +1342,7 @@ only interact with rrd files and sql databases.
 
 sub handleData {
     my ( $self, @args ) = @_;
-    my $parameters = validate(
+    my $parameters = validateParams(
         @args,
         {
             id                 => 1,
@@ -1399,7 +1400,7 @@ return in the response message.
 
 sub retrieveSQL {
     my ( $self, @args ) = @_;
-    my $parameters = validate(
+    my $parameters = validateParams(
         @args,
         {
             d                  => 1,
@@ -1492,12 +1493,12 @@ sub retrieveSQL {
     }
     else {
         my $prefix = "nmwg";
-        my $uri    = "http://ggf.org/ns/nmwg/base/2.0";
+        my $uri    = "http://ggf.org/ns/nmwg/base/2.0/";
 
         if ($datumns) {
             if ( defined $parameters->{et} and $parameters->{et} ne q{} ) {
                 foreach my $e ( sort keys %{ $parameters->{et} } ) {
-                    next if $e eq "http://ggf.org/ns/nmwg/tools/snmp/2.0";
+                    next if $e eq "http://ggf.org/ns/nmwg/tools/snmp/2.0/";
                     $uri = $e;
                 }
             }
@@ -1510,7 +1511,7 @@ sub retrieveSQL {
                 }
                 if ( !$prefix ) {
                     $prefix = "nmwg";
-                    $uri    = "http://ggf.org/ns/nmwg/base/2.0";
+                    $uri    = "http://ggf.org/ns/nmwg/base/2.0/";
                 }
             }
         }
@@ -1559,7 +1560,7 @@ return in the response message.
 
 sub retrieveRRD {
     my ( $self, @args ) = @_;
-    my $parameters = validate(
+    my $parameters = validateParams(
         @args,
         {
             d                  => 1,
@@ -1610,11 +1611,11 @@ sub retrieveRRD {
     }
     else {
         my $prefix = "nmwg";
-        my $uri    = "http://ggf.org/ns/nmwg/base/2.0";
+        my $uri    = "http://ggf.org/ns/nmwg/base/2.0/";
         if ($datumns) {
             if ( defined $parameters->{et} and $parameters->{et} ne q{} ) {
                 foreach my $e ( sort keys %{ $parameters->{et} } ) {
-                    next if $e eq "http://ggf.org/ns/nmwg/tools/snmp/2.0";
+                    next if $e eq "http://ggf.org/ns/nmwg/tools/snmp/2.0/";
                     $uri = $e;
                 }
             }
@@ -1627,7 +1628,7 @@ sub retrieveRRD {
                 }
                 if ( !$prefix ) {
                     $prefix = "nmwg";
-                    $uri    = "http://ggf.org/ns/nmwg/base/2.0";
+                    $uri    = "http://ggf.org/ns/nmwg/base/2.0/";
                 }
             }
         }
@@ -1637,33 +1638,26 @@ sub retrieveRRD {
 
         startData( $parameters->{output}, $id, $parameters->{mid}, undef );
         foreach my $a ( sort( keys(%rrd_result) ) ) {
-            foreach my $b ( sort( keys( %{ $rrd_result{$a} } ) ) ) {
-                if ( $b eq $dataSource and $a < $sec ) {
-
-                    my %attrs = ();
-                    if ( $timeType eq "iso" ) {
-                        my ( $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst ) = gmtime($a);
-                        $attrs{"timeType"} = "ISO";
-                        $attrs{"timeValue"}
-                            = sprintf "%04d-%02d-%02dT%02d:%02d:%02dZ\n",
-                            ( $year + 1900 ), ( $mon + 1 ), $mday, $hour,
-                            $min, $sec;
-                    }
-                    else {
-                        $attrs{"timeType"}  = "unix";
-                        $attrs{"timeValue"} = $a;
-                    }
-                    $attrs{"value"}      = $rrd_result{$a}{$b};
-                    $attrs{"valueUnits"} = $valueUnits;
-
-                    $parameters->{output}->createElement(
-                        prefix     => $prefix,
-                        namespace  => $uri,
-                        tag        => "datum",
-                        attributes => \%attrs
-                    );
-
+            if ( $a < $sec ) {
+                my %attrs = ();
+                if ( $timeType eq "iso" ) {
+                    my ( $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst ) = gmtime($a);
+                    $attrs{"timeType"} = "ISO";
+                    $attrs{"timeValue"} = sprintf "%04d-%02d-%02dT%02d:%02d:%02dZ\n", ( $year + 1900 ), ( $mon + 1 ), $mday, $hour, $min, $sec;
                 }
+                else {
+                    $attrs{"timeType"}  = "unix";
+                    $attrs{"timeValue"} = $a;
+                }
+                $attrs{"value"}      = $rrd_result{$a}{$dataSource};
+                $attrs{"valueUnits"} = $valueUnits;
+
+                $parameters->{output}->createElement(
+                    prefix     => $prefix,
+                    namespace  => $uri,
+                    tag        => "datum",
+                    attributes => \%attrs
+                );
             }
         }
         endData( $parameters->{output} );
@@ -1679,7 +1673,7 @@ Re-construct the parameters block.
 
 sub addSelectParameters {
     my ( $self, @args ) = @_;
-    my $parameters = validate(
+    my $parameters = validateParams(
         @args,
         {
             parameter_block => 1,
@@ -1749,7 +1743,7 @@ Bugs, feature requests, and improvements can be directed here:
 
 =head1 VERSION
 
-$Id: SNMP.pm 1069 2008-03-07 20:33:35Z zurawski $
+$Id: SNMP.pm 1877 2008-03-27 16:33:01Z aaron $
 
 =head1 AUTHOR
 
